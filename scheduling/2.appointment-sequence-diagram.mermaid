@@ -1,0 +1,113 @@
+sequenceDiagram
+    participant P as Patient
+    participant UI as Web Interface
+    participant API as API Server
+    participant DB as Database
+    participant EHR as EHR System
+    participant NS as Notification Service
+
+    %% Appointment Booking Flow
+    rect rgb(230, 240, 250)
+        Note over P,NS: Appointment Booking Flow
+        P->>UI: Access scheduling system
+        UI->>API: Request available physicians
+        API->>DB: Query physicians by specialty/location
+        DB-->>API: Return physician list
+        API-->>UI: Send physician data
+        UI-->>P: Display physicians
+        
+        P->>UI: Select physician and date
+        UI->>API: Request available time slots
+        API->>DB: Check physician schedule
+        API->>DB: Check existing appointments
+        API->>DB: Check time-off periods
+        DB-->>API: Return availability data
+        API-->>UI: Send available slots
+        UI-->>P: Display time slots
+        
+        P->>UI: Select time slot & enter details
+        UI->>API: Create appointment request
+        API->>DB: Validate slot availability
+        API->>DB: Create appointment record
+        API->>DB: Create financial record
+        DB-->>API: Confirm creation
+        API->>NS: Send confirmation email/SMS
+        API-->>UI: Return confirmation
+        UI-->>P: Show confirmation
+    end
+
+    %% Physician Schedule Management
+    rect rgb(250, 230, 240)
+        Note over P,NS: Physician Schedule Management
+        P->>UI: Access schedule management
+        UI->>API: Get current schedule
+        API->>DB: Query physician schedules
+        DB-->>API: Return schedule data
+        API-->>UI: Send schedule
+        UI-->>P: Display schedule
+        
+        P->>UI: Update schedule/Add time-off
+        UI->>API: Update schedule request
+        API->>DB: Update schedule records
+        API->>DB: Check affected appointments
+        DB-->>API: Return affected appointments
+        API->>NS: Notify affected patients
+        API-->>UI: Confirm update
+    end
+
+    %% Appointment Rescheduling
+    rect rgb(240, 250, 230)
+        Note over P,NS: Appointment Rescheduling
+        P->>UI: Request reschedule
+        UI->>API: Get appointment details
+        API->>DB: Fetch appointment
+        DB-->>API: Return appointment
+        API-->>UI: Send appointment data
+        
+        P->>UI: Select new time slot
+        UI->>API: Check new slot availability
+        API->>DB: Validate availability
+        DB-->>API: Confirm availability
+        API->>DB: Update appointment
+        DB-->>API: Confirm update
+        API->>NS: Send reschedule notification
+        API-->>UI: Confirm reschedule
+        UI-->>P: Show confirmation
+    end
+
+    %% Physician Viewing Appointments
+    rect rgb(250, 240, 230)
+        Note over P,NS: Physician Daily View
+        P->>UI: Access daily schedule
+        UI->>API: Get today's appointments
+        API->>DB: Query appointments
+        DB-->>API: Return appointments
+        API-->>UI: Send appointment list
+        UI-->>P: Display schedule
+        
+        P->>UI: Click on patient
+        UI->>API: Request patient access
+        API->>EHR: Request patient record
+        EHR-->>API: Return patient data/URL
+        API-->>UI: Send EHR access
+        UI->>EHR: Launch patient record
+    end
+
+    %% Copay Management
+    rect rgb(240, 230, 250)
+        Note over P,NS: Copay Management
+        P->>UI: View appointment financials
+        UI->>API: Get financial details
+        API->>DB: Query financial records
+        DB-->>API: Return copay info
+        API-->>UI: Send financial data
+        UI-->>P: Display amount due
+        
+        P->>UI: Process payment
+        UI->>API: Submit payment
+        API->>DB: Update payment status
+        DB-->>API: Confirm update
+        API->>NS: Send payment receipt
+        API-->>UI: Confirm payment
+        UI-->>P: Show receipt
+    end
