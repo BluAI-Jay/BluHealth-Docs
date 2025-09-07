@@ -1,0 +1,195 @@
+sequenceDiagram
+    participant P as Patient
+    participant UI as Frontend App
+    participant API as API Gateway
+    participant LS as Location Service
+    participant SS as Scheduling Service
+    participant PS as Physician Service
+    participant NS as Notification Service
+    participant DB as Database
+    participant EMR as EMR System
+
+    Note over P,EMR: Multi-Location Appointment Booking
+
+    P->>UI: Search for physician/specialty
+    UI->>API: GET /api/physicians/search?specialty=cardiology
+    API->>LS: Get all locations
+    API->>PS: Get physicians by specialty
+    API->>SS: Get availability across locations
+    
+    par Get Location Data
+        LS->>DB: Query locations table
+        DB-->>LS: Location details
+    and Get Physician Data
+        PS->>DB: Query physicians & assignments
+        DB-->>PS: Physician location schedules
+    and Get Availability
+        SS->>DB: Query schedules & appointments
+        DB-->>SS: Available time slots
+    end
+    
+    API-->>UI: Aggregated results with locations
+    UI-->>P: Display physicians across all locations
+    
+    P->>UI: Select physician + location + time
+    UI->>API: POST /api/appointments/book
+    API->>SS: Validate slot availability
+    SS->>DB: Check conflicts across all locations
+    DB-->>SS: Slot confirmed available
+    
+    alt Slot Available
+        API->>SS: Create appointment
+        SS->>DB: Insert appointment record
+        API->>NS: Schedule confirmations
+        
+        par Send Notifications
+            NS->>P: Email/SMS confirmation
+            NS->>UI: Real-time update
+        and Update Physician Schedule
+            SS->>DB: Update physician availability
+        and Log Activity
+            API->>DB: Audit log entry
+        end
+        
+        API-->>UI: Booking success
+        UI-->>P: Confirmation with location details
+    else Slot Unavailable
+        API-->>UI: Slot no longer available
+        UI->>API: GET /api/alternative-slots
+        API->>SS: Find similar slots across locations
+        SS->>DB: Query alternative availability
+        DB-->>SS: Alternative options
+        API-->>UI: Suggest alternatives
+        UI-->>P: Show alternative times/locations
+    end
+
+    Note over P,EMR: Appointment Rescheduling Across Locations
+    
+    P->>UI: Request reschedule appointment
+    UI->>API: GET /api/appointments/{id}/reschedule-options
+    API->>SS: Get physician availability
+    API->>LS: Get all physician locations
+    
+    par Multi-Location Availability Check
+        SS->>DB: Query physician schedules
+        DB-->>SS: Available slots per location
+    and Location Details
+        LS->>DB: Get location information
+        DB-->>LS: Location details & amenities
+    end
+    
+    API-->>UI: Available slots across all locations
+    UI-->>P: Display options with location info
+    
+    P->>UI: Select new slot (different location)
+    UI->>API: PUT /api/appointments/{id}
+    API->>SS: Validate new slot
+    SS->>DB: Check cross-location conflicts
+    
+    alt No Conflicts
+        SS->>DB: Update appointment
+        API->>NS: Send update notifications
+        NS->>P: Reschedule confirmation
+        NS->>UI: Update patient calendar
+        API-->>UI: Reschedule success
+    else Conflict Detected
+        API-->>UI: Conflict error
+        UI-->>P: Show conflict details
+    end
+
+    Note over P,EMR: Physician Multi-Location Dashboard Access
+    
+    participant PH as Physician
+    PH->>UI: Login to physician portal
+    UI->>API: GET /api/physician/schedule
+    API->>PS: Get physician locations
+    PS->>DB: Query physician assignments
+    DB-->>PS: All assigned locations
+    
+    API->>SS: Get schedule across locations
+    SS->>DB: Query appointments all locations
+    DB-->>SS: Unified schedule data
+    
+    API-->>UI: Multi-location schedule
+    UI-->>PH: Dashboard with location tabs
+    
+    PH->>UI: Click patient appointment
+    UI->>API: GET /api/patients/{id}/records
+    API->>EMR: Request patient data
+    EMR-->>API: Patient health records
+    API-->>UI: Patient information
+    UI-->>PH: Display patient records modal
+
+    Note over P,EMR: Staff Multi-Location Management
+    
+    participant ST as Staff
+    ST->>UI: Access staff portal
+    UI->>API: GET /api/staff/appointments
+    API->>LS: Get staff location access
+    LS->>DB: Query staff permissions
+    DB-->>LS: Accessible locations
+    
+    API->>SS: Get location appointments
+    SS->>DB: Query appointments by location
+    DB-->>SS: Location-specific appointments
+    
+    API-->>UI: Location-filtered appointments
+    UI-->>ST: Display location appointments
+    
+    ST->>UI: Modify appointment
+    UI->>API: PUT /api/appointments/{id}/staff-update
+    API->>SS: Update appointment
+    SS->>DB: Save changes
+    API->>NS: Notify affected parties
+    
+    par Send Notifications
+        NS->>P: Appointment change notification
+        NS->>PH: Schedule update
+    and Audit Trail
+        API->>DB: Log staff action
+    end
+    
+    API-->>UI: Update confirmation
+    UI-->>ST: Display success message
+
+    Note over P,EMR: Cross-Location Follow-up Scheduling
+    
+    PH->>UI: Schedule follow-up for patient
+    UI->>API: POST /api/appointments/follow-up
+    API->>PS: Get physician future availability
+    PS->>DB: Query physician schedules all locations
+    DB-->>PS: Available follow-up slots
+    
+    API->>SS: Create follow-up appointment
+    SS->>DB: Book appointment
+    API->>NS: Send follow-up confirmation
+    NS->>P: Follow-up appointment details
+    
+    alt Physician Not Available
+        API->>PS: Find alternative physicians
+        PS->>DB: Query same specialty physicians
+        DB-->>PS: Alternative providers
+        API-->>UI: Suggest alternative physicians
+        UI-->>PH: Show alternative options
+    end
+
+    Note over P,EMR: Emergency Rescheduling Due to Physician Unavailability
+    
+    SS->>API: Physician emergency unavailable
+    API->>SS: Get affected appointments
+    SS->>DB: Query physician appointments
+    DB-->>SS: List of affected appointments
+    
+    API->>PS: Find replacement physicians
+    PS->>DB: Query available alternatives
+    DB-->>PS: Replacement options
+    
+    API->>NS: Send emergency notifications
+    
+    par Notify Patients
+        NS->>P: Emergency reschedule options
+    and Notify Staff
+        NS->>ST: Physician unavailability alert
+    and Update Systems
+        SS->>DB: Update appointment statuses
+    end
